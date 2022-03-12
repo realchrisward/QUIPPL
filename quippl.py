@@ -31,14 +31,19 @@ arguments to bypass the need for the user to select/do anything
 @author: Christopher Scott Ward 2022
 """
 
-__version__ = 1.0.0
+__version__ = '1.0.0'
 
 #%% import libraries
 
 import argparse
 import subprocess
-import PyQt5
+from PyQt5 import QtWidgets
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget
+from PyQt5.QtWidgets import QFileDialog, QPushButton
+from PyQt5 import QtCore
 import os
+import sys
+
 
 
 #%% define main
@@ -46,7 +51,7 @@ def main():
     print(
         '{}\n{}\nversion : {}'.format(
             'Thank you for using QUIPPL',
-            Quick User Interface Portable Python Launcher,
+            'Quick User Interface Portable Python Launcher',
             __version__)
         )
     
@@ -60,26 +65,34 @@ def main():
     * test if QUIPPL_config is empty
     """
     #%%
+    # default state for availablility of path to python file is False
+    command_line_available = False    
+    quippl_config_available = False
+    gui_selection_available = False
     
     # Collect command line arguments
-    parser = argparse.ArgumentParser('QUIPPL')
+    parser = argparse.ArgumentParser(description='QUIPPL')
     
-    parser.add_argument('--pypath', help='path to the python file to run')
+    parser.add_argument(
+        '--pypath', 
+        help='path to the python file to run')
     parser.add_argument(
         '--pyargs', 
-        help='a "quoted sting" with the arguments for the python file'
+        help='a "quoted sting" with the arguments for the python file '
         +'if quotes are needed, use single quotes'
         )
     
-    parser.parse_args()
+    parsed_args = parser.parse_args()
     
-    pypath = parser.pypath
-    pyargs = parser.pyargs
+    pypath = parsed_args.pypath
+    pyargs = parsed_args.pyargs
     
     # Check if command line arguments were provided
     if pypath is not None:
+        pypath = pypath.join(['"','"'])
         command_line_available = True
         print(f'pypath: {pypath}\npyargs: {pyargs}')
+
     # fix pyargs in case quotes are needed - replace with double quotes
     if pyargs is not None and len(pyargs) > 0:
         pyargs = pyargs.replace("'",'"')
@@ -94,23 +107,28 @@ def main():
             if len(quippl_config_contents.strip()) > 0:
                 quippl_config_available = True
                 print(f'QUIPPL_config: {quippl_config_contents}')    
-    
-    
+
+                
     # use gui to get path to py file
     if not any([command_line_available,quippl_config_available]):
         print('No pypath or QUIPPL_config found. Launching GUI tool')
         # Use the pyqt filedialog to select a file 
         # (selected path should be element [0] of the returned list)
-        gui_selection_path = \
-            PyQt5.QtWidgets.QFileDialog.getOpenFileName(
-                'Select Python File to Run',
-                os.getcwd(),
-                'Python Files (*.py)'
-                )[0]
+        app = QApplication(sys.argv)
+        gui_selection_path = QFileDialog.getOpenFileName(
+            None,
+            'QUIPPL'
+            ' - Select you Python File (*.py)',
+            '',
+            'Python File (*.py)')[0]
+
+        
+        
         if gui_selection_path is not None and \
                 len(gui_selection_path) > 0:
             gui_selection_available = True
-            print(f'GUI selected pypath: {pypath}')    
+            print(f'GUI selected pypath: {gui_selection_path}')    
+            gui_selection_path = gui_selection_path.join(['"','"'])
     
     
     # decide which path to use
@@ -122,28 +140,37 @@ def main():
         path_to_use = command_line_selection
     elif gui_selection_available:
         print('...using python file selected from GUI tool')
-        path_to_use = gui_selection_available
-    
+        path_to_use = gui_selection_path
+    else:
+        print('...no python file selected...terminating...')
     
     # launch the py file
-    echo = subprocess.Popen(
-        path_to_use,
-        stdout= subprocess.PIPE, 
-        stderr = subprocess.STDOUT
-        )
-
-
-    # extract the stdout and feed it to the queue
-    running = 1
-    while running == 1:
-        line = echo.stdout.readline().decode('utf8')
-        if echo.poll() is not None:
-            running = 0
-        elif line != '':
-            print(line.strip())
-              
+    if any([
+            quippl_config_available,
+            command_line_available,
+            gui_selection_available
+            ]):
+        print(path_to_use)
+        echo = subprocess.Popen(
+            ' '.join(['python -u',path_to_use]),
+            stdout= subprocess.PIPE, 
+            stderr = subprocess.STDOUT
+            )
     
-    input('Press "Enter" to Exit')
+    
+        # extract the stdout and feed it to the queue
+        running = 1
+        while running == 1:
+            line = echo.stdout.readline().decode('utf8')
+            if echo.poll() is not None:
+                running = 0
+            elif line != '':
+                print(line.strip())
+                  
+    
+    input(
+        '\nQUIPPL Done\nPress "Enter" to Exit'
+        )
     
     
 #%% run main
