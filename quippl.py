@@ -29,9 +29,13 @@ QUIPPL_config.txt file to provide the necessary path to the .py file and it's
 arguments to bypass the need for the user to select/do anything
 
 @author: Christopher Scott Ward 2022
+
+**Note v2.0.0 breaks use of command line arguments, fix anticipated in v2.1.0
+  will require conditions to be met for compatability.
+
 """
 
-__version__ = '1.0.0'
+__version__ = '2.0.0'
 
 #%% import libraries
 
@@ -43,6 +47,7 @@ from PyQt5.QtWidgets import QFileDialog, QPushButton
 from PyQt5 import QtCore
 import os
 import sys
+import runpy
 
 
 
@@ -89,14 +94,15 @@ def main():
     
     # Check if command line arguments were provided
     if pypath is not None:
-        pypath = pypath.join(['"','"'])
+        # pypath = pypath.join(['"','"'])
         command_line_available = True
         print(f'pypath: {pypath}\npyargs: {pyargs}')
 
     # fix pyargs in case quotes are needed - replace with double quotes
     if pyargs is not None and len(pyargs) > 0:
         pyargs = pyargs.replace("'",'"')
-        command_line_selection = ' '.join([pypath, pyargs])
+        # command_line_selection = ' '.join([pypath, pyargs])
+        command_line_selection = pypath
     
     
     # Check if QUIPPL_config.txt is present
@@ -128,7 +134,7 @@ def main():
                 len(gui_selection_path) > 0:
             gui_selection_available = True
             print(f'GUI selected pypath: {gui_selection_path}')    
-            gui_selection_path = gui_selection_path.join(['"','"'])
+            # gui_selection_path = gui_selection_path.join(['"','"'])
     
     
     # decide which path to use
@@ -144,28 +150,39 @@ def main():
     else:
         print('...no python file selected...terminating...')
     
-    # launch the py file
+    
+    
+    
+    # launch the py file and use the cwd argument to set the working directory
     if any([
             quippl_config_available,
             command_line_available,
             gui_selection_available
             ]):
         print(path_to_use)
-        echo = subprocess.Popen(
-            ' '.join(['python -u',path_to_use]),
-            stdout= subprocess.PIPE, 
-            stderr = subprocess.STDOUT
-            )
+        print(os.path.realpath(path_to_use))
+        if path_to_use[0] == '"' or path_to_use[0] == "'":
+            os.chdir(os.path.dirname(path_to_use[1:-1]))
+        else:
+            os.chdir(os.path.dirname(path_to_use))
+        print(os.getcwd())
+        
+        # echo = subprocess.Popen(
+        #     ' '.join(['python -u',os.path.basename(path_to_use)]),
+        #     stdout = subprocess.PIPE, 
+        #     stderr = subprocess.STDOUT
+        #     )
     
+        runpy.run_path(path_to_use)
     
         # extract the stdout and feed it to the queue
-        running = 1
-        while running == 1:
-            line = echo.stdout.readline().decode('utf8')
-            if echo.poll() is not None:
-                running = 0
-            elif line != '':
-                print(line.strip())
+        # running = 1
+        # while running == 1:
+        #     line = echo.stdout.readline().decode('utf8')
+        #     if echo.poll() is not None:
+        #         running = 0
+        #     elif line != '':
+        #         print(line.strip())
                   
     
     input(
