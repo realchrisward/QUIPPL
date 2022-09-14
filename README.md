@@ -8,9 +8,9 @@ programs.  Many non-programmers would love to run your program but
 don't want to worry about installing python and setting up the 
 evironment.  QUIPPL helps the user to launch your program.
 
-Step 1: package quippl using pyinstaller (ideally in the same python
-environment used for the code you will be sharing) - the current 
-prepackaged version is packaged using python 3.8
+Step 1: package quippl using pyinstaller or nuitka (ideally in the same 
+python environment used for the code you will be sharing) - the current 
+version is tested for packaging using python 3.8
 
 Step 2: copy the site-packages from your python environment/python 
 installation that will run your code into the "dist" folder holding the
