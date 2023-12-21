@@ -10,9 +10,8 @@ programs.  Many non-programmers would love to run your program but
 don't want to worry about installing python and setting up the 
 evironment.  QUIPPL helps the user to launch your program.
 
-Step 1: package quippl using pyinstaller (ideally in the same python
-environment used for the code you will be sharing) - the current 
-prepackaged version is packaged using python 3.8
+Step 1: package quippl using pyinstaller or nuitka 
+(ideally in the same python environment used for the code you will be sharing)
 
 Step 2: copy the site-packages from your python environment/python 
 installation that will run your code into the "dist" folder holding the
@@ -29,20 +28,18 @@ QUIPPL_config.txt file to provide the necessary path to the .py file and it's
 arguments to bypass the need for the user to select/do anything
 
 @author: Christopher Scott Ward 2022
+
 """
 
-__version__ = '1.0.0'
+__version__ = '2.1.0'
 
 #%% import libraries
 
 import argparse
-import subprocess
-from PyQt5 import QtWidgets
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget
-from PyQt5.QtWidgets import QFileDialog, QPushButton
-from PyQt5 import QtCore
+from PyQt5.QtWidgets import QFileDialog, QApplication
 import os
 import sys
+import importlib
 
 
 
@@ -57,12 +54,6 @@ def main():
     
     """
     Collect potential sources of the path to the python file
-    
-    
-    notes for testing
-    * test command line launch with 0, 1, and 2 or more arguments
-    * test QUIPPL_config launch with 0, 1, and 2 or more arguments
-    * test if QUIPPL_config is empty
     """
     #%%
     # default state for availablility of path to python file is False
@@ -89,20 +80,21 @@ def main():
     
     # Check if command line arguments were provided
     if pypath is not None:
-        pypath = pypath.join(['"','"'])
         command_line_available = True
         print(f'pypath: {pypath}\npyargs: {pyargs}')
 
     # fix pyargs in case quotes are needed - replace with double quotes
     if pyargs is not None and len(pyargs) > 0:
         pyargs = pyargs.replace("'",'"')
-        command_line_selection = ' '.join([pypath, pyargs])
+        # command_line_selection = ' '.join([pypath, pyargs])
+        command_line_selection = pypath
     
     
     # Check if QUIPPL_config.txt is present
     if os.path.isfile('QUIPPL_config.txt'):
         with open('QUIPPL_config.txt','r') as open_file:
             quippl_config_contents = open_file.read().replace('\n','')
+            pyargs = {}
             # Check that config contents are not empty
             if len(quippl_config_contents.strip()) > 0:
                 quippl_config_available = True
@@ -121,6 +113,7 @@ def main():
             ' - Select you Python File (*.py)',
             '',
             'Python File (*.py)')[0]
+        pyargs = {}
 
         
         
@@ -128,7 +121,7 @@ def main():
                 len(gui_selection_path) > 0:
             gui_selection_available = True
             print(f'GUI selected pypath: {gui_selection_path}')    
-            gui_selection_path = gui_selection_path.join(['"','"'])
+            # gui_selection_path = gui_selection_path.join(['"','"'])
     
     
     # decide which path to use
@@ -144,31 +137,31 @@ def main():
     else:
         print('...no python file selected...terminating...')
     
-    # launch the py file
+    
+    
+    
+    # launch the py file and use the cwd argument to set the working directory
     if any([
             quippl_config_available,
             command_line_available,
             gui_selection_available
             ]):
-        print(path_to_use)
-        echo = subprocess.Popen(
-            ' '.join(['python -u',path_to_use]),
-            stdout= subprocess.PIPE, 
-            stderr = subprocess.STDOUT
-            )
+        if path_to_use[0] == '"' or path_to_use[0] == "'":
+            full_path = os.path.realpath(path_to_use[1:-1])
+        else:
+            full_path = os.path.realpath(path_to_use)
+        print(f'running: {full_path}')
+        
+        os.chdir(os.path.dirname(full_path))
+        sys.path.append(os.path.dirname(full_path))
+        print(f'using directory: {os.getcwd()}')
+        
+        launcher = importlib.import_module(
+            os.path.splitext(os.path.basename(full_path))[0]
+        )
+        launcher.main(**pyargs)
     
-    
-        # extract the stdout and feed it to the queue
-        running = 1
-        while running == 1:
-            line = echo.stdout.readline().decode('utf8')
-            if echo.poll() is not None:
-                running = 0
-            elif line != '':
-                print(line.strip())
-                  
-    
-    input(
+    print(
         '\nQUIPPL Done\nPress "Enter" to Exit'
         )
     
