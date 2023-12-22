@@ -13,7 +13,7 @@ evironment.  QUIPPL helps the user to launch your program.
 Step 1: package quippl using pyinstaller or nuitka 
 (ideally in the same python environment used for the code you will be sharing)
 
-Step 2: copy the site-packages from your python environment/python 
+Step 2: copy the site-packages/environment from your python environment/python 
 installation that will run your code into the "dist" folder holding the
 QUIPPL executable
 
@@ -31,7 +31,7 @@ arguments to bypass the need for the user to select/do anything
 
 """
 
-__version__ = '2.1.0'
+__version__ = '2.3.0'
 
 #%% import libraries
 
@@ -39,7 +39,7 @@ import argparse
 from PyQt5.QtWidgets import QFileDialog, QApplication
 import os
 import sys
-import importlib
+import subprocess
 
 
 
@@ -61,40 +61,42 @@ def main():
     quippl_config_available = False
     gui_selection_available = False
     
-    # Collect command line arguments
-    parser = argparse.ArgumentParser(description='QUIPPL')
+#     Collect command line arguments
+#    parser = argparse.ArgumentParser(description='QUIPPL')
+#    
+#    parser.add_argument(
+#        '--pypath', 
+#        help='path to the python file to run')
+#    parser.add_argument(
+#        '--pyargs', 
+#        help='a "quoted sting" with the arguments for the python file '
+#        +'if quotes are needed, use single quotes'
+#        )
+#    
+#    parsed_args = parser.parse_args()
+#    
+#    pypath = parsed_args.pypath
+#    pyargs = parsed_args.pyargs
+#   
     
-    parser.add_argument(
-        '--pypath', 
-        help='path to the python file to run')
-    parser.add_argument(
-        '--pyargs', 
-        help='a "quoted sting" with the arguments for the python file '
-        +'if quotes are needed, use single quotes'
-        )
-    
-    parsed_args = parser.parse_args()
-    
-    pypath = parsed_args.pypath
-    pyargs = parsed_args.pyargs
+    if len(sys.argv) > 1:
+        pypath = sys.argv[1]
+        pyargs = sys.argv[1:]
+    else:
+        pypath = None
+        pyargs = []
     
     # Check if command line arguments were provided
     if pypath is not None:
         command_line_available = True
         print(f'pypath: {pypath}\npyargs: {pyargs}')
 
-    # fix pyargs in case quotes are needed - replace with double quotes
-    if pyargs is not None and len(pyargs) > 0:
-        pyargs = pyargs.replace("'",'"')
-        # command_line_selection = ' '.join([pypath, pyargs])
-        command_line_selection = pypath
-    
-    
+      
     # Check if QUIPPL_config.txt is present
     if os.path.isfile('QUIPPL_config.txt'):
         with open('QUIPPL_config.txt','r') as open_file:
             quippl_config_contents = open_file.read().replace('\n','')
-            pyargs = {}
+            pyargs = []
             # Check that config contents are not empty
             if len(quippl_config_contents.strip()) > 0:
                 quippl_config_available = True
@@ -110,10 +112,10 @@ def main():
         gui_selection_path = QFileDialog.getOpenFileName(
             None,
             'QUIPPL'
-            ' - Select you Python File (*.py)',
+            ' - Select your Python File (*.py)',
             '',
             'Python File (*.py)')[0]
-        pyargs = {}
+        pyargs = []
 
         
         
@@ -125,15 +127,21 @@ def main():
     
     
     # decide which path to use
-    if quippl_config_available:
-        print('...using python file specified in QUIPPL_config')
-        path_to_use = quippl_config_contents
-    elif command_line_available:
+    if command_line_available:
         print('...using pypath specified from command line')
-        path_to_use = command_line_selection
+        path_to_use = pypath
+        args_to_use = pyargs
+    elif quippl_config_available:
+        print('...using python file specified in QUIPPL_config')
+        path_to_use = quippl_config_contents.split('\t')[0]
+        if len(quippl_config_contents.split('\t'))>1:
+            args_to_use = quippl_config_contents.split('\t')[1:]
+        else:
+            args_to_use = []
     elif gui_selection_available:
         print('...using python file selected from GUI tool')
         path_to_use = gui_selection_path
+        args_to_use = []
     else:
         print('...no python file selected...terminating...')
     
@@ -152,19 +160,37 @@ def main():
             full_path = os.path.realpath(path_to_use)
         print(f'running: {full_path}')
         
-        os.chdir(os.path.dirname(full_path))
-        sys.path.append(os.path.dirname(full_path))
-        print(f'using directory: {os.getcwd()}')
+        # change to quippl's directory for execution
+        orig_dir = os.getcwd()
+        print(f'exec: {orig_dir}')
+        quippl_dir = os.path.realpath(os.path.dirname(__file__))
+        print(f'quippl: {quippl_dir}')
+        os.chdir(quippl_dir)
         
-        launcher = importlib.import_module(
-            os.path.splitext(os.path.basename(full_path))[0]
+        python_path = './python'
+        real_python_path = os.path.realpath(python_path)
+        print([real_python_path,'-u',full_path]+args_to_use)
+        os.chdir(os.path.dirname(full_path))
+        
+        echo = subprocess.Popen(
+            [real_python_path,'-u',full_path]+args_to_use,
+            stdout= subprocess.PIPE, 
+            stderr = subprocess.STDOUT
         )
-        launcher.main(**pyargs)
-    
-    print(
-        '\nQUIPPL Done\nPress "Enter" to Exit'
-        )
-    
+        
+        
+        # collect stdout
+        running = 1
+        while running == 1:
+            line = echo.stdout.readline().decode('utf8')
+            if echo.poll() is not None:
+                running = 0
+            elif line != '':
+                print(line.strip())
+
+        # return to the original execution directory
+        os.chdir(orig_dir)
+        
     
 #%% run main
 if __name__ == '__main__':
